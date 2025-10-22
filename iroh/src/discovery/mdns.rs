@@ -392,6 +392,8 @@ impl MdnsDiscovery {
             });
         };
         let addrs = MdnsDiscovery::socketaddrs_to_addrs(&socketaddrs);
+        println!("🔍 IROH DEBUG: MdnsDiscovery socketaddrs={:?}, converted addrs={:?}", socketaddrs, addrs);
+        
         let node_id_str = data_encoding::BASE32_NOPAD
             .encode(node_id.as_bytes())
             .to_ascii_lowercase();
@@ -399,6 +401,7 @@ impl MdnsDiscovery {
             .with_callback(callback)
             .with_ip_class(IpClass::Auto);
         for addr in addrs {
+            println!("🔗 IROH DEBUG: MdnsDiscovery binding to port {} with IPs {:?}", addr.0, addr.1);
             discoverer = discoverer.with_addrs(addr.0, addr.1);
         }
         discoverer
