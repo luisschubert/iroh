@@ -127,39 +127,91 @@ impl Subscribers {
 
 /// Builder for [`MdnsDiscovery`].
 #[derive(Debug)]
-pub struct MdnsDiscoveryBuilder;
+pub struct MdnsDiscoveryBuilder {
+    interface_addrs: Option<BTreeSet<SocketAddr>>,
+}
 
 impl IntoDiscovery for MdnsDiscoveryBuilder {
     fn into_discovery(
         self,
         context: &DiscoveryContext,
     ) -> Result<impl Discovery, IntoDiscoveryError> {
-        MdnsDiscovery::new(context.node_id())
+        MdnsDiscovery::new(context.node_id(), self.interface_addrs)
     }
 }
 
 impl MdnsDiscovery {
     /// Returns a [`MdnsDiscoveryBuilder`] that implements [`IntoDiscovery`].
     pub fn builder() -> MdnsDiscoveryBuilder {
-        MdnsDiscoveryBuilder
+        MdnsDiscoveryBuilder {
+            interface_addrs: None,
+        }
+    }
+
+    /// Sets the network interface addresses to bind the discovery service to.
+    ///
+    /// This allows you to specify which network interface the mDNS discovery service
+    /// should use for multicast operations, bypassing the system's routing table.
+    ///
+    /// # Arguments
+    /// * `addrs` - A set of socket addresses representing the interfaces to bind to
+    ///
+    /// # Example
+    /// ```rust
+    /// use std::net::{IpAddr, SocketAddr};
+    /// use iroh::discovery::mdns::MdnsDiscovery;
+    ///
+    /// let wlan0_addr = SocketAddr::new(IpAddr::V4([192, 168, 1, 100].into()), 0);
+    /// let builder = MdnsDiscovery::builder().with_interface_addrs([wlan0_addr].into());
+    /// ```
+    pub fn with_interface_addrs(mut self, addrs: BTreeSet<SocketAddr>) -> Self {
+        self.interface_addrs = Some(addrs);
+        self
+    }
+
+    /// Sets a single network interface address to bind the discovery service to.
+    ///
+    /// This is a convenience method for when you only need to bind to a single interface.
+    /// It's equivalent to calling `with_interface_addrs` with a single-element set.
+    ///
+    /// # Arguments
+    /// * `addr` - A socket address representing the interface to bind to
+    ///
+    /// # Example
+    /// ```rust
+    /// use std::net::{IpAddr, SocketAddr};
+    /// use iroh::discovery::mdns::MdnsDiscovery;
+    ///
+    /// let wlan0_addr = SocketAddr::new(IpAddr::V4([192, 168, 1, 100].into()), 0);
+    /// let builder = MdnsDiscovery::builder().with_interface_addr(wlan0_addr);
+    /// ```
+    pub fn with_interface_addr(mut self, addr: SocketAddr) -> Self {
+        self.interface_addrs = Some([addr].into());
+        self
     }
 
     /// Create a new [`MdnsDiscovery`] Service.
     ///
     /// This starts a [`Discoverer`] that broadcasts your addresses and receives addresses from other nodes in your local network.
     ///
+    /// # Arguments
+    /// * `node_id` - The node ID to use for discovery
+    /// * `interface_addrs` - Optional set of socket addresses to bind the discovery service to.
+    ///   If `None`, the discovery service will use the system's routing table to determine
+    ///   which interface to use for multicast operations.
+    ///
     /// # Errors
     /// Returns an error if the network does not allow ipv4 OR ipv6.
     ///
     /// # Panics
     /// This relies on [`tokio::runtime::Handle::current`] and will panic if called outside of the context of a tokio runtime.
-    pub fn new(node_id: NodeId) -> Result<Self, IntoDiscoveryError> {
+    pub fn new(node_id: NodeId, interface_addrs: Option<BTreeSet<SocketAddr>>) -> Result<Self, IntoDiscoveryError> {
         debug!("Creating new MdnsDiscovery service");
         let (send, mut recv) = mpsc::channel(64);
         let task_sender = send.clone();
         let rt = tokio::runtime::Handle::current();
         let discovery =
-            MdnsDiscovery::spawn_discoverer(node_id, task_sender.clone(), BTreeSet::new(), &rt)?;
+            MdnsDiscovery::spawn_discoverer(node_id, task_sender.clone(), interface_addrs.unwrap_or_default(), &rt)?;
 
         let local_addrs: Watchable<Option<NodeData>> = Watchable::default();
         let mut addrs_change = local_addrs.watch();
