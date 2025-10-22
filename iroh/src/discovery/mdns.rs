@@ -140,14 +140,7 @@ impl IntoDiscovery for MdnsDiscoveryBuilder {
     }
 }
 
-impl MdnsDiscovery {
-    /// Returns a [`MdnsDiscoveryBuilder`] that implements [`IntoDiscovery`].
-    pub fn builder() -> MdnsDiscoveryBuilder {
-        MdnsDiscoveryBuilder {
-            interface_addrs: None,
-        }
-    }
-
+impl MdnsDiscoveryBuilder {
     /// Sets the network interface addresses to bind the discovery service to.
     ///
     /// This allows you to specify which network interface the mDNS discovery service
@@ -188,6 +181,15 @@ impl MdnsDiscovery {
     pub fn with_interface_addr(mut self, addr: SocketAddr) -> Self {
         self.interface_addrs = Some([addr].into());
         self
+    }
+}
+
+impl MdnsDiscovery {
+    /// Returns a [`MdnsDiscoveryBuilder`] that implements [`IntoDiscovery`].
+    pub fn builder() -> MdnsDiscoveryBuilder {
+        MdnsDiscoveryBuilder {
+            interface_addrs: None,
+        }
     }
 
     /// Create a new [`MdnsDiscovery`] Service.
